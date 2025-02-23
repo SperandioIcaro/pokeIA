@@ -37,7 +37,12 @@ python main.py
 
 ```bash
 # Gerar imagens aumentadas
-python src/poke_downloader.py --augment
+python poke_downloader.py
+```
+
+```bash
+# Limpeza de itens indesejados e padronização de imagens
+python clean_dataset.py
 ```
 
 ## 🧠 Estrutura do Projeto
