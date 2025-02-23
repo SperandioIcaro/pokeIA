@@ -17,7 +17,7 @@ Este projeto tem como intuito inicial criar uma I.A. com objetivo de especializa
 
 ```bash
 # Clone o repositório
-git clone https://github.com/#############
+git clone git@github.com:SperandioIcaro/pokeIA.git
 
 # Crie e ative o ambiente virtual
 python -m venv venv
@@ -102,8 +102,10 @@ scikit-learn==1.2.2
 1. Preparação do dataset:
 
 ```bash
-mkdir -p dataset/pokemon
-# Coloque suas imagens .png em dataset/pokemon/
+# Acesse o link abaixo e baixe as imagens ja padronizadas
+https://drive.google.com/drive/folders/1M1zAbCHRkCD40-6X3K7v3UMeW7tNLJoh?usp=sharing
+
+# Cole a pasta dataset na raiz do projeto ou crie a pasta e adicione suas proprias imagens seguindo op padrão informado anteriormente
 ```
 
 2. Para melhor performance:
