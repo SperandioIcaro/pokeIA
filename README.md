@@ -32,17 +32,17 @@ pip install -r requirements.txt
 
 ```bash
 # Treinar o modelo (GPU recomendada)
-python main.py
+python src/main.py
 ```
 
 ```bash
 # Gerar imagens aumentadas
-python poke_downloader.py
+python src/poke_downloader.py
 ```
 
 ```bash
 # Limpeza de itens indesejados e padronização de imagens
-python clean_dataset.py
+python src/clean_dataset.py
 ```
 
 ## 🧠 Estrutura do Projeto
@@ -59,7 +59,8 @@ pokeIA/
             └── 025_aug1.png
 ├── src/
 │   ├── main.py            # Script principal de treinamento
-│   └── poke_downloader.py # Gerenciamento de dataset
+│   └── poke_downloader.py # Gerar imagens modificadas
+│   └── clean_dataset.py   # Limpeza e tratamento de imagens
 ├── requirements.txt       # Dependências do projeto
 └── README.md
 ```
