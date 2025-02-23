@@ -1,0 +1,47 @@
+# Ignore Python bytecode
+__pycache__/
+*.py[cod]
+
+# Ignore virtual environment directories
+venv/
+env/
+
+# Ignore dataset directory
+dataset/
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE specific files
+.vscode/
+.idea/
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Ignore compiled files
+*.so
+*.dll
+*.dylib
+
+# Ignore configuration files
+*.env
+*.config
+node_modules
+
+# Ambientes virtuais
+pokedetector_env/
+venv/
+
+# Arquivos .deb baixados
+*.deb
+
+# Bibliotecas compiladas do TensorFlow/Clang
+**/libtensorflow_*
+**/libclang.so
