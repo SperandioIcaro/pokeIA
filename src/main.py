@@ -1,171 +1,118 @@
-# Importações necessárias
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, GlobalAveragePooling2D
+from tensorflow.keras.layers import Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import EfficientNetB0
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.utils import load_img
-from sklearn.utils.class_weight import compute_class_weight
-import matplotlib.pyplot as plt
 import numpy as np
-import pickle
 import os
 import warnings
-import shutil
+from colorama import Fore, Style, init
+from tqdm.keras import TqdmCallback
 
-# Configuração inicial do ambiente
-warnings.filterwarnings("ignore", category=UserWarning)
+init(autoreset=True)
+warnings.filterwarnings("ignore")
 
-# Configuração de GPU/CPU
+def print_status(message, emoji="🔄"):
+    print(f"\n{Fore.CYAN}{emoji} {Fore.WHITE}{message}")
+
+class ColorProgress(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        acc = logs['accuracy']
+        val_acc = logs['val_accuracy']
+        print(f"{Fore.GREEN}Epoch {epoch+1:02d} | Acc: {acc:.2f} {Fore.YELLOW}| Val Acc: {val_acc:.2f}")
+
+print_status("Configurando ambiente...", "⚙️")
 physical_devices = tf.config.list_physical_devices('GPU')
 if physical_devices:
     tf.config.experimental.set_memory_growth(physical_devices[0], True)
-    print("GPU detectada e configurada!")
+    print(f"{Fore.GREEN}✅ GPU configurada")
 else:
-    print("Usando CPU")
+    print(f"{Fore.YELLOW}⚠️  Usando CPU")
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduz logs do TensorFlow
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-# Função para carregar imagens com tratamento de erros
-def safe_load_img(path, target_size=(224, 224)):
-    try:
-        img = load_img(path, target_size=target_size)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        return img
-    except Exception as e:
-        print(f"Removendo arquivo inválido: {path}")
-        os.remove(path)
-        return None
+print_status("Analisando dataset...", "📁")
+def verify_dataset(path='dataset'):
+    classes = [d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    for cls in classes:
+        count = len(os.listdir(os.path.join(path, cls)))
+        print(f"{Fore.MAGENTA}➤ {cls}: {Fore.WHITE}{count} imagens")
+    return classes
 
-# Função para verificar integridade do dataset
-def verify_dataset(dataset_path='dataset'):
-    shutil.rmtree(os.path.join(dataset_path, '.ipynb_checkpoints'), ignore_errors=True)
-    
-    for class_name in os.listdir(dataset_path):
-        class_path = os.path.join(dataset_path, class_name)
-        if os.path.isdir(class_path):
-            print(f"{class_name}: {len(os.listdir(class_path))} imagens")
+pokemon_list = verify_dataset()
 
-verify_dataset()
+IMG_SIZE = 160  # Aumento leve na resolução
+BATCH_SIZE = 32  # Aumento controlado no batch size
 
-# Parâmetros fundamentais do modelo
-IMG_SIZE = 224
-BATCH_SIZE = 32
-
-# Configuração de aumento de dados e pré-processamento
-data_gen = ImageDataGenerator(
-    preprocessing_function=tf.keras.applications.efficientnet.preprocess_input,
+print_status("Preparando dados...", "📊")
+train_gen = ImageDataGenerator(
     rotation_range=15,
+    zoom_range=0.1,
     width_shift_range=0.1,
     height_shift_range=0.1,
-    zoom_range=0.1,
-    brightness_range=[0.9,1.1],
     validation_split=0.2,
-    dtype='float32'
+    preprocessing_function=tf.keras.applications.efficientnet.preprocess_input
 )
 
-# Remoção de artefatos temporários
-shutil.rmtree('dataset/.ipynb_checkpoints', ignore_errors=True)
-
-# Carregamento dos dados de treino
-train_data = data_gen.flow_from_directory(
+train_data = train_gen.flow_from_directory(
     'dataset',
     target_size=(IMG_SIZE, IMG_SIZE),
     batch_size=BATCH_SIZE,
     class_mode='categorical',
     subset='training',
-    color_mode='rgba' if os.listdir('dataset')[0].endswith('.png') else 'rgb',
-    classes=None
+    color_mode='rgb'
 )
 
-# Carregamento dos dados de validação
-val_data = data_gen.flow_from_directory(
+val_data = train_gen.flow_from_directory(
     'dataset',
     target_size=(IMG_SIZE, IMG_SIZE),
     batch_size=BATCH_SIZE,
     class_mode='categorical',
     subset='validation',
-    color_mode='rgba' if os.listdir('dataset')[0].endswith('.png') else 'rgb',
-    classes=None
+    color_mode='rgb'
 )
 
-# Análise de distribuição das classes
-print("\nDistribuição de classes:")
-print(np.unique(train_data.classes, return_counts=True))
-
-# Cálculo de pesos para classes desbalanceadas
-class_weights = compute_class_weight(
-    'balanced',
-    classes=np.unique(train_data.classes),
-    y=train_data.classes
-)
-class_weights = dict(enumerate(class_weights))
-
-# Construção da arquitetura do modelo
-base_model = EfficientNetB0(
-    include_top=False,
-    weights='imagenet',
-    input_shape=(IMG_SIZE, IMG_SIZE, 4 if train_data.image_shape[2] == 4 else 3)
-)
-
-# Estratégia de transfer learning
-base_model.trainable = False
-for layer in base_model.layers[-10:]:
-    layer.trainable = True
-
-# Definição das camadas do modelo
+print_status("Construindo modelo...", "🧠")
 model = Sequential([
-    base_model,
+    EfficientNetB0(
+        include_top=False,
+        weights='imagenet',
+        input_shape=(IMG_SIZE, IMG_SIZE, 3)),
     GlobalAveragePooling2D(),
-    Dense(256, activation='relu', kernel_regularizer=tf.keras.regularizers.l1_l2(l1=0.01, l2=0.01)),
-    Dropout(0.5),
-    Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.01)),
-    Dense(len(train_data.class_indices), activation='softmax')
+    Dense(256, activation='relu'),
+    Dropout(0.3),  # Regularização adicional
+    Dense(len(pokemon_list), activation='softmax')
 ])
 
-# Configuração do processo de otimização
 model.compile(
-    optimizer=Adam(learning_rate=1e-3, clipnorm=1.0),
+    optimizer=Adam(learning_rate=3e-4),  # Taxa de aprendizado ajustada
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )
 
-# Configuração de callbacks para treino
 callbacks = [
     EarlyStopping(patience=5, restore_best_weights=True),
     ModelCheckpoint('best_model.keras', save_best_only=True),
-    ReduceLROnPlateau(factor=0.2, patience=2)
+    ReduceLROnPlateau(factor=0.5, patience=2),
+    ColorProgress(),
+    TqdmCallback(verbose=0)  # Barra de progresso leve
 ]
 
-# Fase 1: Treinamento inicial
+print_status("Iniciando treinamento...", "🚀")
 history = model.fit(
     train_data,
     validation_data=val_data,
-    epochs=20,
+    epochs=15,  # Epochs aumentadas
     callbacks=callbacks,
-    class_weight=class_weights
+    verbose=0
 )
 
-# Fase 2: Fine-tuning do modelo
-if len(history.history['val_loss']) >= 5:
-    base_model.trainable = True
-    model.compile(optimizer=Adam(learning_rate=1e-5), loss='categorical_crossentropy', metrics=['accuracy'])
-    
-    history_fine = model.fit(
-        train_data,
-        validation_data=val_data,
-        epochs=10,
-        callbacks=callbacks
-    )
-
-# Avaliação final do modelo
+print_status("Avaliação final...", "📝")
 loss, accuracy = model.evaluate(val_data)
-print(f"\nAcurácia final: {accuracy*100:.2f}%")
+print(f"{Fore.GREEN}🎯 Acurácia final: {accuracy*100:.2f}%")
 
-# Salvamento dos resultados
+print_status("Salvando modelo...", "💾")
 model.save('pokemon_model.keras')
-with open('history.pkl', 'wb') as f:
-    pickle.dump(history.history, f)
+print(f"{Fore.GREEN}✅ Treinamento concluído!")
