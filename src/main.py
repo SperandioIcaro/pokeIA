@@ -5,6 +5,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import EfficientNetB0
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.optimizers import Adam
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import warnings
@@ -48,10 +49,13 @@ BATCH_SIZE = 32  # Aumento controlado no batch size
 
 print_status("Preparando dados...", "📊")
 train_gen = ImageDataGenerator(
-    rotation_range=15,
-    zoom_range=0.1,
-    width_shift_range=0.1,
-    height_shift_range=0.1,
+    rotation_range=25,  # Aumentado de 15 para 25
+    zoom_range=0.2,     # Aumentado de 0.1 para 0.2
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    brightness_range=[0.8, 1.2],  # Novo
+    # contrast_range=[0.8, 1.2],    # Novo
+    horizontal_flip=True,         # Novo
     validation_split=0.2,
     preprocessing_function=tf.keras.applications.efficientnet.preprocess_input
 )
@@ -75,19 +79,38 @@ val_data = train_gen.flow_from_directory(
 )
 
 print_status("Construindo modelo...", "🧠")
+# Adicione na seção de data augmentation:
+train_gen = ImageDataGenerator(
+    rotation_range=25,  # Aumentado de 15 para 25
+    zoom_range=0.2,     # Aumentado de 0.1 para 0.2
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    brightness_range=[0.8, 1.2],  # Novo
+    # contrast_range=[0.8, 1.2],    # Novo
+    horizontal_flip=True,         # Novo
+    validation_split=0.2,
+    preprocessing_function=tf.keras.applications.efficientnet.preprocess_input
+)
+
+# Modifique a construção do modelo:
+base_model = EfficientNetB0(
+    include_top=False,
+    weights='imagenet', 
+    input_shape=(IMG_SIZE, IMG_SIZE, 3)
+)
+base_model.trainable = True  # Descongelar camadas para fine-tuning
+
 model = Sequential([
-    EfficientNetB0(
-        include_top=False,
-        weights='imagenet',
-        input_shape=(IMG_SIZE, IMG_SIZE, 3)),
+    base_model,
     GlobalAveragePooling2D(),
-    Dense(256, activation='relu'),
-    Dropout(0.3),  # Regularização adicional
+    Dense(512, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(0.02)),  # Aumentado
+    Dropout(0.6),  # Aumentado
     Dense(len(pokemon_list), activation='softmax')
 ])
 
+# Ajuste o otimizador:
 model.compile(
-    optimizer=Adam(learning_rate=3e-4),  # Taxa de aprendizado ajustada
+    optimizer=Adam(learning_rate=1e-5),  # Reduzido para fine-tuning
     loss='categorical_crossentropy',
     metrics=['accuracy']
 )
@@ -108,6 +131,26 @@ history = model.fit(
     callbacks=callbacks,
     verbose=0
 )
+
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Acurácia Treino')
+plt.plot(history.history['val_accuracy'], label='Acurácia Validação')
+plt.title('Evolução da Acurácia')
+plt.ylabel('Acurácia')
+plt.xlabel('Época')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Perda Treino')
+plt.plot(history.history['val_loss'], label='Perda Validação')
+plt.title('Evolução da Perda')
+plt.ylabel('Perda')
+plt.xlabel('Época')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
 
 print_status("Avaliação final...", "📝")
 loss, accuracy = model.evaluate(val_data)

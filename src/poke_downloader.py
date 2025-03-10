@@ -37,6 +37,7 @@ def get_all_sprites(data):
     extract_urls(data['sprites'])
     return list(set(urls))
 
+# Modifique a função augment_image:
 def augment_image(img_path, output_dir, num_augmented=3):
     try:
         img = Image.open(img_path)
@@ -45,19 +46,31 @@ def augment_image(img_path, output_dir, num_augmented=3):
         
         with yaspin(text=f"  Gerando aumentações para {base_name}", color="yellow") as spinner:
             for i in range(num_augmented):
-                angle = np.random.randint(-20, 20)
-                zoom = np.random.uniform(0.8, 1.2)
+                # Aumento de dados mais agressivo
+                angle = np.random.randint(-25, 25)
+                zoom = np.random.uniform(0.7, 1.3)
+                flip = np.random.choice([True, False])
                 
                 new_img = img.rotate(angle, expand=True)
+                
+                if flip:
+                    new_img = new_img.transpose(Image.FLIP_LEFT_RIGHT)
+                
                 new_size = (int(new_img.width * zoom), int(new_img.height * zoom))
                 new_img = new_img.resize(new_size, Image.LANCZOS)
+                
+                # Ajustes de brilho/contraste
+                enhancer = ImageEnhance.Brightness(new_img)
+                new_img = enhancer.enhance(np.random.uniform(0.8, 1.2))
+                
+                enhancer = ImageEnhance.Contrast(new_img)
+                new_img = enhancer.enhance(np.random.uniform(0.8, 1.2))
                 
                 new_name = f"{name}_aug{i}{ext}"
                 new_img.save(os.path.join(output_dir, new_name))
                 spinner.text = f"  Gerada {i+1}/{num_augmented} aumentações"
             
             spinner.ok("✔")
-
     except Exception as e:
         print_colored(f"Erro ao aumentar {img_path}: {str(e)}", Fore.RED, '⚠️')
 

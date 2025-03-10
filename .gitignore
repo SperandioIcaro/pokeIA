@@ -8,6 +8,7 @@ env/
 
 # Ignore dataset directory
 dataset/
+test_images/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
